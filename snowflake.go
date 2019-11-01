@@ -105,7 +105,7 @@ func timeToSnowflakeUnit(t time.Time) int64 {
 	return t.UTC().UnixNano() / snowflakeTimeUnit
 }
 
-func (sf Snowflake) snowflakeUnitToTime(t int64) time.Time {
+func (sf Snowflake) SnowflakeUnitToTime(t int64) time.Time {
 	return time.Unix(0, (sf.StartTime*snowflakeTimeUnit)+(t*snowflakeTimeUnit))
 }
 
