@@ -9,7 +9,7 @@ id is composed of:
 
 You should use NTP to keep your system clock accurate
 
- */
+*/
 
 import (
 	"errors"
@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	TotalBits = 64
-	EpochBits = 42  // 139 years with custom epoch in milliseconds
-	MachineIDBits = 10  // up to 1024 nodes
-	SequenceBits = 12  // up to 4096 unique ids for the same timestamp
+	TotalBits     = 64
+	EpochBits     = 42 // 139 years with custom epoch in milliseconds
+	MachineIDBits = 10 // up to 1024 nodes
+	SequenceBits  = 12 // up to 4096 unique ids for the same timestamp
 
 	maxNodeID = int(1<<MachineIDBits - 1)
 )
@@ -29,7 +29,7 @@ const (
 type Snowflake struct {
 	StartTime int64
 	MachineID uint64
-	Sequence uint16
+	Sequence  uint16
 
 	lastTimestamp int64
 
@@ -39,7 +39,6 @@ type Snowflake struct {
 const snowflakeTimeUnit = 1e6 // nsec, i.e. 1 msec
 
 var epochStart = time.Date(2019, 4, 1, 0, 0, 0, 0, time.UTC)
-
 
 func NewSnowflake(starttime time.Time, machineID int) *Snowflake {
 	sf := new(Snowflake)
@@ -64,7 +63,7 @@ func NewSnowflake(starttime time.Time, machineID int) *Snowflake {
 	return sf
 }
 
-func (sf *Snowflake)NextID() (uint64, error) {
+func (sf *Snowflake) NextID() (uint64, error) {
 	sf.mutex.Lock()
 	defer sf.mutex.Unlock()
 
@@ -74,17 +73,17 @@ func (sf *Snowflake)NextID() (uint64, error) {
 		sf.lastTimestamp = currentTimestamp
 		sf.Sequence = 0
 	} else {
-		sf.Sequence = (sf.Sequence + 1) & uint16(1<<SequenceBits - 1)
+		sf.Sequence = (sf.Sequence + 1) & uint16(1<<SequenceBits-1)
 		if sf.Sequence == 0 {
 			sf.lastTimestamp++
 
 			// Adjust sleep time until next snowflakeTimeUnit which is < 1msec
-			standby := time.Duration(sf.lastTimestamp-currentTimestamp) * snowflakeTimeUnit - time.Duration(time.Now().UTC().UnixNano()%snowflakeTimeUnit)*time.Nanosecond
+			standby := time.Duration(sf.lastTimestamp-currentTimestamp)*snowflakeTimeUnit - time.Duration(time.Now().UTC().UnixNano()%snowflakeTimeUnit)*time.Nanosecond
 			time.Sleep(standby)
 		}
 	}
 
-	if sf.Sequence > (1<<SequenceBits-1) {
+	if sf.Sequence > (1<<SequenceBits - 1) {
 		panic("Max sequence has been reached")
 	}
 
@@ -113,15 +112,30 @@ func elapsedTime(startTime int64) int64 {
 	return timeToSnowflakeUnit(time.Now()) - startTime
 }
 
-func DecomposeParts(id uint64) (uint64, uint64, uint64){
-	const maskMachineID = uint64(1<<MachineIDBits - 1) << SequenceBits
+func DecomposeParts(id uint64) (uint64, uint64, uint64) {
+	const maskMachineID = uint64(1<<MachineIDBits-1) << SequenceBits
 	const maskSequence = uint64(1<<SequenceBits - 1)
 
-	t := id >> ( MachineIDBits + SequenceBits)
+	t := id >> (MachineIDBits + SequenceBits)
 	mid := id & maskMachineID >> SequenceBits
 	seq := id & maskSequence
 
 	return t, mid, seq
+}
+
+// Converts given time to comparable snowflake ID.
+// Can be used to check if an ID was created before or after.
+func (sf *Snowflake) TimeToSnowflakeID(t time.Time) uint64 {
+	nt := uint64(timeToSnowflakeUnit(t) - sf.StartTime)
+
+	return nt << (MachineIDBits + SequenceBits)
+}
+
+// Converts given snowflake ID to time (in millisecond precision).
+func (sf *Snowflake) IDToTime(id uint64) time.Time {
+	t := uint64(id >> (MachineIDBits + SequenceBits))
+
+	return sf.SnowflakeUnitToTime(int64(t))
 }
 
 /*
